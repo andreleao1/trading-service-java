@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  currency-pricing:
+    image: andregustavoleao/princing-service-go:latest
+    container_name: currency-pricing
+    ports:
+      - "8080:8080"

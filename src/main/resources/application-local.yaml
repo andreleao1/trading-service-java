@@ -1,0 +1,4 @@
+websocket:
+  servers:
+    currencies:
+      url: ws://localhost:8080/currencies
