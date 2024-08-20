@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.CircuitBreaker;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,11 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
             value = { TradeExecutionException.class },
             maxAttempts = 5,
             backoff = @Backoff(delay = 2000)
+    )
+    @CircuitBreaker(
+            maxAttempts = 5,
+            openTimeout = 10000,
+            resetTimeout = 20000
     )
     @Override
     public String executeTrade(BitcoinTradeModel bitcoinTradeModel) {
