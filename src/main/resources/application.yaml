@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: trading-service
+  profiles:
+    active: local
+  kafka:
+    topics:
+      order-trading-topic: order-trading-topic
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+server:
+  port: 9090
+  servlet:
+    context-path: /trading
+
+business:
+  trade-fee: 1.0
