@@ -7,6 +7,8 @@ import com.agls.trading_service.infra.kafka.KafkaProducerGateway;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,6 +23,11 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
     @Value("${business.trade-fee}")
     private String tradeFee;
 
+    @Retryable(
+            value = { TradeExecutionException.class },
+            maxAttempts = 5,
+            backoff = @Backoff(delay = 2000)
+    )
     @Override
     public String executeTrade(BitcoinTradeModel bitcoinTradeModel) {
         log.info("Initiating trading, Transaction id: {}", bitcoinTradeModel.getTradeId());
