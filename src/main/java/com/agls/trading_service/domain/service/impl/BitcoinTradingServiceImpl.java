@@ -4,6 +4,7 @@ import com.agls.trading_service.domain.exceptions.TradeExecutionException;
 import com.agls.trading_service.domain.models.BitcoinTradeModel;
 import com.agls.trading_service.domain.service.BitcoinTradingService;
 import com.agls.trading_service.infra.kafka.KafkaProducerGateway;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,8 @@ import java.math.BigDecimal;
 public class BitcoinTradingServiceImpl implements BitcoinTradingService {
 
     private final KafkaProducerGateway kafkaProducerGateway;
+
+    private final ObjectMapper objectMapper;
 
     @Value("${business.trade-fee}")
     private String tradeFee;
@@ -41,7 +44,8 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
         bitcoinTradeModel.setEffectiveBitcoinPurchased(calculateEffectiveBitcoinPurchased(bitcoinTradeModel));
 
         try {
-            kafkaProducerGateway.sendToKafka(bitcoinTradeModel);
+            var messageJson = objectMapper.writeValueAsString(bitcoinTradeModel);
+            kafkaProducerGateway.sendToKafka(messageJson);
         } catch (Exception e) {
             log.error("Error processing trade.", e);
             throw new TradeExecutionException();
@@ -55,14 +59,14 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
         bitcoinTradeModel.setDollarAmount(bitcoinTradeModel.getDollarAmount().subtract(tradeFeeValue));
     }
 
-private BigDecimal calculateEffectiveBitcoinPurchased(BitcoinTradeModel bitcoinTradeModel) {
-    log.info("Calculating effective bitcoin purchased, trade id: {}", bitcoinTradeModel.getTradeId());
+    private BigDecimal calculateEffectiveBitcoinPurchased(BitcoinTradeModel bitcoinTradeModel) {
+        log.info("Calculating effective bitcoin purchased, trade id: {}", bitcoinTradeModel.getTradeId());
 
-    BigDecimal effectiveBitcoinPurchased = bitcoinTradeModel.getDollarAmount()
-            .divide(bitcoinTradeModel.getBitcoinValue());
+        BigDecimal effectiveBitcoinPurchased = bitcoinTradeModel.getDollarAmount()
+                .divide(bitcoinTradeModel.getBitcoinValue());
 
-    log.info("Effective bitcoin purchased: {}, trade id: {}", effectiveBitcoinPurchased, bitcoinTradeModel.getTradeId());
+        log.info("Effective bitcoin purchased: {}, trade id: {}", effectiveBitcoinPurchased, bitcoinTradeModel.getTradeId());
 
-    return effectiveBitcoinPurchased;
-}
+        return effectiveBitcoinPurchased;
+    }
 }

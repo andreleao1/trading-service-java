@@ -42,13 +42,13 @@ class BitcoinTradingServiceImplTest {
         tradeModel.setDollarAmount(BigDecimal.valueOf(100.0));
         tradeModel.setBitcoinValue(BigDecimal.valueOf(50000.0));
 
-        doNothing().when(kafkaProducerGateway).sendToKafka(tradeModel);
+        doNothing().when(kafkaProducerGateway).sendToKafka(any(String.class));
 
         String result = bitcoinTradingService.executeTrade(tradeModel);
 
         assertEquals(tradeId.toString(), result);
         assertEquals(BigDecimal.valueOf(1.8E-3), tradeModel.getEffectiveBitcoinPurchased());
-        verify(kafkaProducerGateway, times(1)).sendToKafka(tradeModel);
+        verify(kafkaProducerGateway, times(1)).sendToKafka(tradeModel.toString());
     }
 
     @Test
@@ -60,9 +60,9 @@ class BitcoinTradingServiceImplTest {
         tradeModel.setDollarAmount(BigDecimal.valueOf(100.0));
         tradeModel.setBitcoinValue(BigDecimal.valueOf(50000.0));
 
-        doThrow(new RuntimeException("Kafka error")).when(kafkaProducerGateway).sendToKafka(tradeModel);
+        doThrow(new RuntimeException("Kafka error")).when(kafkaProducerGateway).sendToKafka(any(String.class));
 
         assertThrows(TradeExecutionException.class, () -> bitcoinTradingService.executeTrade(tradeModel));
-        verify(kafkaProducerGateway, times(1)).sendToKafka(tradeModel);
+        verify(kafkaProducerGateway, times(1)).sendToKafka(tradeModel.toString());
     }
 }
