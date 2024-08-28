@@ -7,5 +7,5 @@ import com.agls.trading_service.infra.http.dto.response.WalletResponse;
 public interface CoreCustomerService {
 
     WalletResponse getWalletByCustomerId(String customerId);
-    void reserveBalance(BitcoinTradeModel bitcoinTradeModel, String walletId);
+    String reserveBalance(BitcoinTradeModel bitcoinTradeModel, String walletId);
 }

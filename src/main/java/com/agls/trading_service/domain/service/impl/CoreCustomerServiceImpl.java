@@ -29,7 +29,7 @@ public class CoreCustomerServiceImpl implements CoreCustomerService {
     }
 
     @Override
-    public void reserveBalance(BitcoinTradeModel bitcoinTradeModel, String walletId) {
+    public String reserveBalance(BitcoinTradeModel bitcoinTradeModel, String walletId) {
         log.info("Reserving wallet balance to open trade request.");
 
         var requestBody = ReserveBalanceRequest.builder()
@@ -39,11 +39,9 @@ public class CoreCustomerServiceImpl implements CoreCustomerService {
 
         var response = coreCustomerClient.reserveBalance(requestBody);
 
-        if(response.status() != HttpStatus.CREATED.value()) {
-            log.error("Error reserving balance for trade, status code: {}", response.status());
-            throw new RuntimeException("Error reserving balance for trade.");
-        }
-
-        log.info("Balance reservation completed.");
+        return response.orElseThrow(() -> {
+            log.error("Error reserving balance for trade, trade id: {}", bitcoinTradeModel.getTradeId());
+            return new RuntimeException("Error reserving balance for trade, trade id: " + bitcoinTradeModel.getTradeId());
+        }).getReserveId();
     }
 }

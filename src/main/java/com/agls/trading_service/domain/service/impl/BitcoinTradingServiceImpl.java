@@ -32,11 +32,9 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
 
     @Retryable(
             value = { TradeExecutionException.class },
-            maxAttempts = 5,
-            backoff = @Backoff(delay = 2000)
+            backoff = @Backoff(delay = 5000)
     )
     @CircuitBreaker(
-            maxAttempts = 5,
             openTimeout = 10000,
             resetTimeout = 20000
     )
@@ -45,34 +43,31 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
         log.info("Initiating trading, Transaction id: {}", bitcoinTradeModel.getTradeId());
 
         try {
-            var walletResponse = coreCustomerService.getWalletByCustomerId(bitcoinTradeModel.getCustomerId().toString());
+            WalletResponse walletResponse = coreCustomerService
+                    .getWalletByCustomerId(bitcoinTradeModel.getCustomerId().toString());
 
-            if(!isEnoughBalance(bitcoinTradeModel, walletResponse)) {
-                log.error("Insufficient balance for trade, trade id: {}", bitcoinTradeModel.getTradeId());
-                throw new InsuficientBalanceException();
-            }
+            validateBalance(bitcoinTradeModel, walletResponse);
 
-            coreCustomerService.reserveBalance(bitcoinTradeModel, walletResponse.getId());
+            String reserveId = makeReservation(bitcoinTradeModel, walletResponse);
 
-            applyTradeFee(bitcoinTradeModel);
+            bitcoinTradeModel.setReserveId(reserveId);
             bitcoinTradeModel.setEffectiveBitcoinPurchased(calculateEffectiveBitcoinPurchased(bitcoinTradeModel));
 
-            log.info("Saving trade to database, trade id: {}", bitcoinTradeModel.getTradeId());
-            tradeRepository.save(bitcoinTradeModel);
-
-
-            kafkaProducerGateway.sendToKafka(bitcoinTradeModel);
+            saveTradeAndSendToKafka(bitcoinTradeModel);
         } catch (Exception e) {
-            log.error("Error processing trade.", e);
+            log.error("Error processing trade, trade id: {}", bitcoinTradeModel.getTradeId(), e);
             throw new TradeExecutionException();
         }
 
+        log.info("Trade executed successfully, trade id: {}", bitcoinTradeModel.getTradeId());
         return bitcoinTradeModel.getTradeId().toString();
     }
 
-    private void applyTradeFee(BitcoinTradeModel bitcoinTradeModel) {
-        var tradeFeeValue = BigDecimal.valueOf(Double.parseDouble(tradeFee));
-        bitcoinTradeModel.setDollarAmount(bitcoinTradeModel.getDollarAmount().subtract(tradeFeeValue));
+    private void validateBalance(BitcoinTradeModel bitcoinTradeModel, WalletResponse walletResponse) {
+        if (!isEnoughBalance(bitcoinTradeModel, walletResponse)) {
+            log.error("Insufficient balance for trade, trade id: {}", bitcoinTradeModel.getTradeId());
+            throw new InsuficientBalanceException();
+        }
     }
 
     private BigDecimal calculateEffectiveBitcoinPurchased(BitcoinTradeModel bitcoinTradeModel) {
@@ -81,16 +76,28 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
         BigDecimal effectiveBitcoinPurchased = bitcoinTradeModel.getDollarAmount()
                 .divide(bitcoinTradeModel.getBitcoinValue());
 
-        log.info("Effective bitcoin purchased: {}, trade id: {}", effectiveBitcoinPurchased, bitcoinTradeModel.getTradeId());
+        log.info("Effective bitcoin purchased: {}, trade id: {}",
+                effectiveBitcoinPurchased,
+                bitcoinTradeModel.getTradeId());
 
         return effectiveBitcoinPurchased;
     }
 
     private boolean isEnoughBalance(BitcoinTradeModel bitcoinTradeModel, WalletResponse walletResponse) {
-        var totalTradeValue = bitcoinTradeModel.getDollarAmount()
+        BigDecimal totalTradeValue = bitcoinTradeModel.getDollarAmount()
                 .add(BigDecimal.valueOf(Double.parseDouble(tradeFee)));
-        var walletBalance = BigDecimal.valueOf(Double.parseDouble(walletResponse.getBalance()));
+        BigDecimal walletBalance = BigDecimal.valueOf(Double.parseDouble(walletResponse.getBalance()));
 
         return walletBalance.compareTo(totalTradeValue) >= 0;
+    }
+
+    private String makeReservation(BitcoinTradeModel bitcoinTradeModel, WalletResponse walletResponse) {
+        return coreCustomerService.reserveBalance(bitcoinTradeModel, walletResponse.getId());
+    }
+
+    private void saveTradeAndSendToKafka(BitcoinTradeModel bitcoinTradeModel) {
+        log.info("Saving trade to database, trade id: {}", bitcoinTradeModel.getTradeId());
+        tradeRepository.save(bitcoinTradeModel);
+        kafkaProducerGateway.sendToKafka(bitcoinTradeModel);
     }
 }

@@ -28,4 +28,6 @@ public class BitcoinTradeModel {
 
     private UUID customerId;
 
+    private String reserveId;
+
 }
