@@ -11,3 +11,6 @@ http:
 spring:
   kafka:
     bootstrap-servers: localhost:9092
+  data:
+    mongodb:
+      uri: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@localhost:27017/trades?authSource=admin

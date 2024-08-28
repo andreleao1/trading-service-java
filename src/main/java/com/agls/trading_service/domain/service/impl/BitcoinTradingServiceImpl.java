@@ -7,6 +7,7 @@ import com.agls.trading_service.domain.service.BitcoinTradingService;
 import com.agls.trading_service.domain.service.CoreCustomerService;
 import com.agls.trading_service.infra.http.dto.response.WalletResponse;
 import com.agls.trading_service.infra.kafka.KafkaProducerGateway;
+import com.agls.trading_service.infra.repository.BitcoinTradeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +25,7 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
 
     private final KafkaProducerGateway kafkaProducerGateway;
     private final CoreCustomerService coreCustomerService;
+    private final BitcoinTradeRepository tradeRepository;
 
     @Value("${business.trade-fee}")
     private String tradeFee;
@@ -42,19 +44,23 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
     public String executeTrade(BitcoinTradeModel bitcoinTradeModel) {
         log.info("Initiating trading, Transaction id: {}", bitcoinTradeModel.getTradeId());
 
-        var walletResponse = coreCustomerService.getWalletByCustomerId(bitcoinTradeModel.getCustomerId().toString());
-
-        if(!isEnoughBalance(bitcoinTradeModel, walletResponse)) {
-            log.error("Insufficient balance for trade, trade id: {}", bitcoinTradeModel.getTradeId());
-            throw new InsuficientBalanceException();
-        }
-
-        coreCustomerService.reserveBalance(bitcoinTradeModel, walletResponse.getId());
-
-        applyTradeFee(bitcoinTradeModel);
-        bitcoinTradeModel.setEffectiveBitcoinPurchased(calculateEffectiveBitcoinPurchased(bitcoinTradeModel));
-
         try {
+            var walletResponse = coreCustomerService.getWalletByCustomerId(bitcoinTradeModel.getCustomerId().toString());
+
+            if(!isEnoughBalance(bitcoinTradeModel, walletResponse)) {
+                log.error("Insufficient balance for trade, trade id: {}", bitcoinTradeModel.getTradeId());
+                throw new InsuficientBalanceException();
+            }
+
+            coreCustomerService.reserveBalance(bitcoinTradeModel, walletResponse.getId());
+
+            applyTradeFee(bitcoinTradeModel);
+            bitcoinTradeModel.setEffectiveBitcoinPurchased(calculateEffectiveBitcoinPurchased(bitcoinTradeModel));
+
+            log.info("Saving trade to database, trade id: {}", bitcoinTradeModel.getTradeId());
+            tradeRepository.save(bitcoinTradeModel);
+
+
             kafkaProducerGateway.sendToKafka(bitcoinTradeModel);
         } catch (Exception e) {
             log.error("Error processing trade.", e);
