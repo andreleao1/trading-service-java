@@ -1,4 +1,4 @@
-package com.agls.trading_service.infra.impl;
+package com.agls.trading_service.infra.websocket;
 
 import com.agls.trading_service.infra.CurrenciesWebSocketService;
 import com.fasterxml.jackson.core.type.TypeReference;

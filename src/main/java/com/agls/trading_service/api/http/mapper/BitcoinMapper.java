@@ -9,11 +9,12 @@ import java.util.UUID;
 
 public class BitcoinMapper {
 
-    public static BitcoinTradeModel toModel(BitcoinTradeIn bitcoinTradeIn) {
+    public static BitcoinTradeModel toModel(BitcoinTradeIn bitcoinTradeIn, String customerId) {
         return BitcoinTradeModel.builder()
                 .tradeId(UUID.randomUUID())
                 .bitcoinValue(new BigDecimal(bitcoinTradeIn.getBitcoinValue()))
                 .dollarAmount(new BigDecimal(bitcoinTradeIn.getDollarAmount()))
+                .customerId(UUID.fromString(customerId))
                 .build();
     }
 

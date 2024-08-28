@@ -1,8 +1,11 @@
 package com.agls.trading_service.domain.service.impl;
 
+import com.agls.trading_service.domain.exceptions.InsuficientBalanceException;
 import com.agls.trading_service.domain.exceptions.TradeExecutionException;
 import com.agls.trading_service.domain.models.BitcoinTradeModel;
 import com.agls.trading_service.domain.service.BitcoinTradingService;
+import com.agls.trading_service.domain.service.CoreCustomerService;
+import com.agls.trading_service.infra.http.dto.response.WalletResponse;
 import com.agls.trading_service.infra.kafka.KafkaProducerGateway;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +23,7 @@ import java.math.BigDecimal;
 public class BitcoinTradingServiceImpl implements BitcoinTradingService {
 
     private final KafkaProducerGateway kafkaProducerGateway;
+    private final CoreCustomerService coreCustomerService;
 
     @Value("${business.trade-fee}")
     private String tradeFee;
@@ -37,6 +41,16 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
     @Override
     public String executeTrade(BitcoinTradeModel bitcoinTradeModel) {
         log.info("Initiating trading, Transaction id: {}", bitcoinTradeModel.getTradeId());
+
+        var walletResponse = coreCustomerService.getWalletByCustomerId(bitcoinTradeModel.getCustomerId().toString());
+
+        if(!isEnoughBalance(bitcoinTradeModel, walletResponse)) {
+            log.error("Insufficient balance for trade, trade id: {}", bitcoinTradeModel.getTradeId());
+            throw new InsuficientBalanceException();
+        }
+
+        coreCustomerService.reserveBalance(bitcoinTradeModel, walletResponse.getId());
+
         applyTradeFee(bitcoinTradeModel);
         bitcoinTradeModel.setEffectiveBitcoinPurchased(calculateEffectiveBitcoinPurchased(bitcoinTradeModel));
 
@@ -55,14 +69,22 @@ public class BitcoinTradingServiceImpl implements BitcoinTradingService {
         bitcoinTradeModel.setDollarAmount(bitcoinTradeModel.getDollarAmount().subtract(tradeFeeValue));
     }
 
-private BigDecimal calculateEffectiveBitcoinPurchased(BitcoinTradeModel bitcoinTradeModel) {
-    log.info("Calculating effective bitcoin purchased, trade id: {}", bitcoinTradeModel.getTradeId());
+    private BigDecimal calculateEffectiveBitcoinPurchased(BitcoinTradeModel bitcoinTradeModel) {
+        log.info("Calculating effective bitcoin purchased, trade id: {}", bitcoinTradeModel.getTradeId());
 
-    BigDecimal effectiveBitcoinPurchased = bitcoinTradeModel.getDollarAmount()
-            .divide(bitcoinTradeModel.getBitcoinValue());
+        BigDecimal effectiveBitcoinPurchased = bitcoinTradeModel.getDollarAmount()
+                .divide(bitcoinTradeModel.getBitcoinValue());
 
-    log.info("Effective bitcoin purchased: {}, trade id: {}", effectiveBitcoinPurchased, bitcoinTradeModel.getTradeId());
+        log.info("Effective bitcoin purchased: {}, trade id: {}", effectiveBitcoinPurchased, bitcoinTradeModel.getTradeId());
 
-    return effectiveBitcoinPurchased;
-}
+        return effectiveBitcoinPurchased;
+    }
+
+    private boolean isEnoughBalance(BitcoinTradeModel bitcoinTradeModel, WalletResponse walletResponse) {
+        var totalTradeValue = bitcoinTradeModel.getDollarAmount()
+                .add(BigDecimal.valueOf(Double.parseDouble(tradeFee)));
+        var walletBalance = BigDecimal.valueOf(Double.parseDouble(walletResponse.getBalance()));
+
+        return walletBalance.compareTo(totalTradeValue) >= 0;
+    }
 }

@@ -22,4 +22,6 @@ public class BitcoinTradeModel {
 
     private BigDecimal effectiveBitcoinPurchased;
 
+    private UUID customerId;
+
 }

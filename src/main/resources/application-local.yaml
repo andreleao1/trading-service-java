@@ -3,6 +3,11 @@ websocket:
     currencies:
       url: ws://localhost:8080/currencies
 
+http:
+  servers:
+    core-customer:
+      url: http://localhost:9093/core-customer
+
 spring:
   kafka:
     bootstrap-servers: localhost:9092
