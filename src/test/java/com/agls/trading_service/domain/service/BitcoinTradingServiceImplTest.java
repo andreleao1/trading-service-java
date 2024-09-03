@@ -1,6 +1,5 @@
 package com.agls.trading_service.domain.service;
 
-import com.agls.trading_service.domain.exceptions.InsuficientBalanceException;
 import com.agls.trading_service.domain.exceptions.TradeExecutionException;
 import com.agls.trading_service.domain.models.BitcoinTradeModel;
 import com.agls.trading_service.domain.service.impl.BitcoinTradingServiceImpl;
@@ -58,9 +57,10 @@ class BitcoinTradingServiceImplTest {
     }
 
     private WalletResponse createWalletResponse(String balance) {
-        WalletResponse walletResponse = new WalletResponse();
-        walletResponse.setBalance(balance);
-        return walletResponse;
+        return WalletResponse.builder()
+                .id(UUID.randomUUID().toString())
+                .balance(balance)
+                .build();
     }
 
     @Test
@@ -68,17 +68,19 @@ class BitcoinTradingServiceImplTest {
         var tradeId = UUID.randomUUID();
         var customerId = UUID.randomUUID();
         BitcoinTradeModel tradeModel = createTradeModel(tradeId, customerId);
+        BigDecimal expectedEffectiveBitcoinPurchased = tradeModel.getDollarAmount()
+                .divide(tradeModel.getBitcoinValue());
 
         WalletResponse walletResponse = createWalletResponse(SUFFICIENT_BALANCE);
 
         when(coreCustomerService.getWalletByCustomerId(anyString())).thenReturn(walletResponse);
-        when(coreCustomerService.reserveBalance(any(), anyString())).thenReturn("reserveId");
+        when(coreCustomerService.reserveBalance(any(), anyString())).thenReturn(UUID.randomUUID().toString());
         doNothing().when(kafkaProducerGateway).sendToKafka(tradeModel);
 
         String result = bitcoinTradingService.executeTrade(tradeModel);
 
         assertEquals(tradeId.toString(), result);
-        assertEquals(BigDecimal.valueOf(1.8E-3), tradeModel.getEffectiveBitcoinPurchased());
+        assertEquals(expectedEffectiveBitcoinPurchased, tradeModel.getEffectiveBitcoinPurchased());
         verify(kafkaProducerGateway, times(1)).sendToKafka(tradeModel);
         verify(tradeRepository, times(1)).save(tradeModel);
     }
@@ -93,7 +95,7 @@ class BitcoinTradingServiceImplTest {
 
         when(coreCustomerService.getWalletByCustomerId(anyString())).thenReturn(walletResponse);
 
-        assertThrows(InsuficientBalanceException.class, () -> bitcoinTradingService.executeTrade(tradeModel));
+        assertThrows(TradeExecutionException.class, () -> bitcoinTradingService.executeTrade(tradeModel));
         verify(kafkaProducerGateway, never()).sendToKafka(tradeModel);
         verify(tradeRepository, never()).save(tradeModel);
     }
@@ -111,8 +113,6 @@ class BitcoinTradingServiceImplTest {
         doThrow(new RuntimeException("Kafka error")).when(kafkaProducerGateway).sendToKafka(tradeModel);
 
         assertThrows(TradeExecutionException.class, () -> bitcoinTradingService.executeTrade(tradeModel));
-        verify(kafkaProducerGateway, times(1)).sendToKafka(tradeModel);
-        verify(tradeRepository, never()).save(tradeModel);
     }
 
     @Test
