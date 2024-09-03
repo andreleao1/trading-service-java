@@ -22,5 +22,6 @@ public class KafkaProducerGatewayImpl implements KafkaProducerGateway {
     public void sendToKafka(BitcoinTradeModel bitcoinTradeModel) {
         log.info("Sending message to Kafka topic: {}, trade id: {}", topicName, bitcoinTradeModel.getTradeId());
         kafkaTemplate.send(topicName, bitcoinTradeModel);
+        log.info("Message sent successfully.");
     }
 }

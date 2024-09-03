@@ -3,6 +3,14 @@ websocket:
     currencies:
       url: ws://localhost:8080/currencies
 
+http:
+  servers:
+    core-customer:
+      url: http://localhost:9093/core-customer
+
 spring:
   kafka:
     bootstrap-servers: localhost:9092
+  data:
+    mongodb:
+      uri: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@localhost:27017/trades?authSource=admin
